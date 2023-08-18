@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>My Website</title>
+    {% comment %} <link rel="stylesheet" href="./style.css"> {% endcomment %}
+    <link rel="icon" href="./favicon.ico" type="image/x-icon">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <script src="https://www.gstatic.com/firebasejs/7.19.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.19.0/firebase-messaging.js"></script>
+    <script src = "https://www.gstatic.com/firebasejs/8.6.3/firebase-analytics.js"></script>
+    {% comment %} <script src = "static/js/firebase-messaging-sw.js"></script> {% endcomment %}
+
+    {% comment %} <script>
+      const firebaseConfig = {
+
+        apiKey: "AIzaSyAIwJ8vHJz8GUpGrgojhfnRwIuwDIAZuSY",
+      
+        authDomain: "notification-a313d.firebaseapp.com",
+      
+        projectId: "notification-a313d",
+      
+        storageBucket: "notification-a313d.appspot.com",
+      
+        messagingSenderId: "629665376926",
+      
+        appId: "1:629665376926:web:8254c95eba3575d535e98f",
+      
+        measurementId: "G-DB1W6CS53E"
+      
+      };
+      
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        firebase.analytics();
+        const messaging = firebase.messaging();
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.register('/firebase-messaging-sw.js')
+            .then(function(registration) {
+              console.log('Registration successful, scope is:', registration.scope);
+            }).catch(function(err) {
+              console.log('Service worker registration failed, error:', err);
+            });
+          }
+        // Initialize Firebase Cloud Messaging and get a reference to the service
+
+        // Get registration token. Initially this makes a network call, once retrieved
+        // subsequent calls to getToken will return from cache.
+        
+        messaging.getToken({
+            vapidKey: 'BKuTAmwBTcXi6rotuJfSJklMjItJhLj6tNifXRDP_tKhUtJ4rD_c0CU1LqPkkE7-IJOnye41t-dbdG71xMmhKz4'
+        }).then((currentToken) => {
+            if (currentToken) {
+            // Send the token to your server and update the UI if necessary
+            // ...
+            localStorage.setItem('fcm_token', currentToken);
+            console.log('fcm_token', currentToken)
+            } else {
+            // Show permission request UI
+            console.log('No registration token available. Request permission to generate one.');
+            // ...
+            }
+        }).catch((err) => {
+            console.log('An error occurred while retrieving token. ', err);
+            // ...
+        });
+
+        messaging
+          .requestPermission()
+          .then(function(){
+              console.log("Notification permission granted.");
+              return messaging.getToken()
+          })
+          .catch(function(err){console.log("unable to get permission to notify",err);
+          })
+          messaging.onMessage((payload) => {
+            console.log('Message received.', payload);
+            // Rest of your code
+        });
+        
+    </script> {% endcomment %}
+    <script>
+      // Initialize Firebase
+      // Firebase Console --> Settings --> General
+      // --> Register App --> Copy firebaseConfig
+      const firebaseConfig = {
+
+        apiKey: "AIzaSyAIwJ8vHJz8GUpGrgojhfnRwIuwDIAZuSY",
+      
+        authDomain: "notification-a313d.firebaseapp.com",
+      
+        projectId: "notification-a313d",
+      
+        storageBucket: "notification-a313d.appspot.com",
+      
+        messagingSenderId: "629665376926",
+      
+        appId: "1:629665376926:web:8254c95eba3575d535e98f",
+      
+        measurementId: "G-DB1W6CS53E"
+      
+      };
+      
+      var csrfToken = "{{ csrf_token }}";
+      console.log(csrfToken)
+  
+      firebase.initializeApp(firebaseConfig);
+  
+      // Firebase Messaging Service
+      const messaging = firebase.messaging();
+      function sendTokenToServer(currentToken) {
+        console.log("token",currentToken)
+              // The API Endpoint will be explained at step 8
+              console.log("token",currentToken)
+              fetch("/api/devices/", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": csrfToken
+                },
+                body: JSON.stringify({
+                    registration_id: currentToken,
+                    type: 'web',
+                    user: 2
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log(data);
+                setTokenSentToServer(true);
+            })
+            .catch(error => {
+                console.error(error);
+                setTokenSentToServer(false);
+            });
+          }
+      function isTokenSentToServer() {
+          return window.localStorage.getItem("sentToServer") === "1";
+      }
+  
+      function setTokenSentToServer(sent) {
+          if (sent) {
+              window.localStorage.setItem("sentToServer", "1");
+          } else {
+              window.localStorage.setItem("sentToServer", "0");
+          }
+      }
+  
+  
+      function requestPermission() {
+          messaging.requestPermission().then(function () {
+              console.log("Has permission!");
+              resetUI();
+          }).catch(function (err) {
+              console.log('Unable to get permission to notify.', err);
+          });
+      }
+  
+      function resetUI() {
+          console.log("In reset ui");
+          messaging.getToken().then(function (currentToken) {
+              console.log(currentToken);
+              if (currentToken) {
+                  sendTokenToServer(currentToken);
+              } else {
+                  setTokenSentToServer(false);
+              }
+          }).catch(function (err) {
+              console.log(err);
+              setTokenSentToServer(false);
+          });
+      }
+  
+      messaging.onTokenRefresh(function () {
+          messaging.getToken().then(function (refreshedToken) {
+              console.log("Token refreshed.");
+              // Indicate that the new Instance ID token has not yet been sent to the
+              // app server.
+              setTokenSentToServer(false);
+              // Send Instance ID token to app server.
+              sendTokenToServer(refreshedToken);
+              resetUI();
+          }).catch(function (err) {
+              console.log("Unable to retrieve refreshed token ", err);
+          });
+      });
+  
+      messaging.onMessage(function (payload) {
+          payload = payload.data;
+          console.log(payload)
+          // Create notification manually when user is focused on the tab
+          const notificationTitle = payload.title;
+          const notificationOptions = {
+              body: payload.body,
+              icon: payload.icon_url,
+          };
+  
+          if (!("Notification" in window)) {
+              console.log("This browser does not support system notifications");
+          }
+          // Let's check whether notification permissions have already been granted
+          else if (Notification.permission === "granted") {
+              // If it's okay let's create a notification
+              var notification = new Notification(notificationTitle, notificationOptions);
+              notification.onclick = function (event) {
+                  event.preventDefault(); // prevent the browser from focusing the Notification's tab
+                  window.open(payload.url, '_blank');
+                  notification.close();
+              }
+          }
+      });
+  
+  
+      requestPermission();
+  </script>
+
+
+  </head>
+  <body>
+    <main>
+        <h1>Welcome to My Website</h1>  
+    </main>
+	{% comment %} <script src="index.js"></script> {% endcomment %}
+  </body>
+</html>
